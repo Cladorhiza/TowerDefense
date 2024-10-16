@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <string>
 #include <cstdint>
+#include <utility>
 
 #include "InputManager.h"
 #include "Shader.h"
@@ -44,12 +45,51 @@ const std::vector<Vertex> rectVerts{
     v4
 };
 
+struct TransformComponent{
+    
+    TransformComponent()
+        :position(0.0f), eulerRotation(0.0f), scale(1.0f), transform(1.0f)
+    {
+    
+    }
+
+    glm::vec3 position;
+    glm::vec3 eulerRotation;
+    glm::vec3 scale;
+    glm::mat4 transform;
+};
+
+namespace TransformSystem{
+
+    std::unordered_map<unsigned, TransformComponent> transforms;
+
+    void AddTransform(unsigned id){
+        bool success = transforms.emplace(std::piecewise_construct, std::make_tuple(id), std::make_tuple()).second;
+        if (!success) std::cout << "TransformSystem: failed to insert transform component " << id << " into system!\n";
+    }
+
+    TransformComponent GetTransform(unsigned id){
+        if (transforms.find(id) != transforms.end()){
+            return transforms.at(id);
+        }
+        else {
+            std::cout << "TransformSystem: failed to retrieve transform component " << id << " from system!\n";
+            return TransformComponent{};
+        }
+    }
+
+    void SetTransform(unsigned id, TransformComponent newTransform){
+        transforms[id] = newTransform;
+    }
+}
+
 struct SpriteComponent {
 
+    VertexArray vao;
     Texture texture;
 
-    SpriteComponent(std::string texturePath) 
-    :texture(texturePath)
+    SpriteComponent(std::string texturePath, std::vector<Vertex> vertices) 
+    :texture(texturePath), vao(vertices)
     {
 
     }
@@ -57,17 +97,39 @@ struct SpriteComponent {
 
 namespace SpriteSystem {
 
-    std::unordered_map<uint32_t, SpriteComponent> spriteComponents;
+    std::unordered_map<uint32_t, SpriteComponent> sprites;
+    Shader* shader;
 
-    void AddSprite(uint32_t id, std::string texturePath) {
-        spriteComponents.emplace(id, texturePath);
+    void AddSprite(uint32_t id, std::string texturePath, std::vector<Vertex> vertices) {
+        bool success = sprites.emplace(std::piecewise_construct, std::make_tuple(id), std::make_tuple(texturePath, vertices)).second;
+        if (!success) std::cout << "SpriteSystem: failed to insert sprite component " << id << " into system!\n";
     }
 
+    void Update(){
+        
+        if (!shader) {
+            std::cout << "SpriteSystem: failed to render without bound shader!\n";
+            return;
+        }
+        shader->Bind();
 
+        for (auto& [id,sprite] : sprites) {
+            TransformComponent tc { TransformSystem::GetTransform(id) };
+                
+            
+            shader->SetUniformMat4f("ModelMatrix", tc.transform);
+            sprite.texture.Bind();
+            Rendering::RenderSpriteVA(sprite.vao);
+            
+            
+        }
+        
+        shader->Unbind();
+    }
 
-
-
-
+    void SetShader(Shader& s){
+        shader = &s;
+    }
 }
 
 int Setup() {
@@ -112,10 +174,10 @@ int main()
     basicShader.SetUniformMat4f("ViewMatrix",       view);
     basicShader.SetUniformMat4f("ModelMatrix",      model);
 
-    VertexArray vao(rectVerts);
+    SpriteSystem::SetShader(basicShader);
 
-    Texture bruno{TEXTURE_PATH + "bruno.png" };
-    bruno.Bind();
+    TransformSystem::AddTransform(0);
+    SpriteSystem::AddSprite(0, TEXTURE_PATH + "bruno.png", rectVerts);
 
     //Window Loop
     while (!glfwWindowShouldClose(window))
@@ -124,20 +186,31 @@ int main()
         //INPUT
         InputManager::Poll(window);
 
-        //LOGIC
-        view = camera.GetViewMatrix();
-        basicShader.SetUniformMat4f("VierMatrix", view);
-
         if (InputManager::GetKeyState(GLFW_KEY_ESCAPE) == GLFW_PRESS) {
             break;
         }
+
+        //LOGIC
+        
+        //system updates
+
+
+        //camera
+        view = camera.GetViewMatrix();
+        basicShader.SetUniformMat4f("ViewMatrix", view);
+
+        glm::mat4 translation = glm::translate(TransformSystem::GetTransform(0).transform, glm::vec3(0.0001f, 0.0f, 0.0f));
+        TransformComponent tc;
+        tc.transform = translation;
+        TransformSystem::SetTransform(0, tc);
 
 
 
         //RENDER
         glClear(GL_COLOR_BUFFER_BIT);
 
-        Rendering::RenderSpriteVA(vao);
+        //rendering system updates
+        SpriteSystem::Update();
 
         /* Swap front and back buffers */
         glfwSwapBuffers(window);
