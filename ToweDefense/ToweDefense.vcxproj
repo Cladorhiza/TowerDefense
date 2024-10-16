@@ -156,19 +156,22 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\Rendering.cpp" />
     <ClCompile Include="src\Camera.cpp" />
-    <ClCompile Include="src\glBuffer.cpp" />
     <ClCompile Include="src\GLUtil.cpp" />
-    <ClCompile Include="src\glVertexArray.cpp" />
     <ClCompile Include="src\InputManager.cpp" />
     <ClCompile Include="src\Main.cpp" />
-    <ClCompile Include="src\ResourceManager.cpp" />
     <ClCompile Include="src\Shader.cpp" />
     <ClCompile Include="src\stb_image.cpp" />
     <ClCompile Include="src\Texture.cpp" />
+    <ClCompile Include="src\VertexArray.cpp" />
+    <ClCompile Include="src\Vertex.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="inc\Camera.h" />
+    <ClInclude Include="inc\Rendering.h" />
+    <ClInclude Include="inc\VertexArray.h" />
+    <ClInclude Include="inc\Vertex.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
