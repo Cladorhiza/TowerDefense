@@ -10,6 +10,7 @@
 #include <string>
 #include <cstdint>
 #include <utility>
+#include <chrono>
 
 #include "InputManager.h"
 #include "Shader.h"
@@ -27,6 +28,9 @@
 const std::string SHADER_PATH {"res\\shaders\\"};
 const std::string TEXTURE_PATH {"res\\textures\\"};
 
+const int GAME_TICKRATE { 128 };
+constexpr double GAME_TIME_PER_TICK = 1.0 / GAME_TICKRATE;
+
 GLFWwindow* window;
 
 Camera camera;
@@ -37,18 +41,11 @@ glm::mat4 model { 1.0f };
 
 double deltaTime { 0.f };
 
-
-
-Vertex v1{ {-0.5f, -0.5f, 0.f},{1.f, 1.f, 1.f, 1.f}, {0.f, 0.f} };
-Vertex v2{ {0.5f, -0.5f, 0.f}, {1.f, 1.f, 1.f, 1.f}, {1.f, 0.f} };
-Vertex v3{ {0.5f, 0.5f, 0.f},  {1.f, 1.f, 1.f, 1.f}, {1.f, 1.f} };
-Vertex v4{ {-0.5f, 0.5f, 0.f}, {1.f, 1.f, 1.f, 1.f}, {0.f, 1.f} };
-
 const std::vector<Vertex> rectVerts{
-    v1,
-    v2,
-    v3,
-    v4
+    { {-0.5f, -0.5f, 0.f},{1.f, 1.f, 1.f, 1.f}, {0.f, 0.f} },
+    { {0.5f, -0.5f, 0.f}, {1.f, 1.f, 1.f, 1.f}, {1.f, 0.f} },
+    { {0.5f, 0.5f, 0.f},  {1.f, 1.f, 1.f, 1.f}, {1.f, 1.f} },
+    { {-0.5f, 0.5f, 0.f}, {1.f, 1.f, 1.f, 1.f}, {0.f, 1.f} }
 };
 
 struct TransformComponent{
@@ -208,6 +205,47 @@ namespace WaypointMovementSystem {
 
 }
 
+struct FrameTimer {
+public:
+
+    int32_t frameCount;
+    double deltaTime;
+
+private:
+
+    std::chrono::time_point<std::chrono::high_resolution_clock> start;
+    std::chrono::time_point<std::chrono::high_resolution_clock> end;
+    std::chrono::duration<float> elapsed;
+    double cumulativeDelta;
+
+public:
+
+    FrameTimer()
+        :frameCount(0), deltaTime(0.0), cumulativeDelta(0.0), elapsed(), start(), end()
+    {
+
+    }
+
+    void FrameStart() {
+        start = std::chrono::high_resolution_clock::now();
+    }
+
+    void FrameEnd() {
+        end = std::chrono::high_resolution_clock::now();
+        elapsed = end - start;
+        deltaTime = elapsed.count();
+        cumulativeDelta += deltaTime;
+
+        frameCount++;
+        if (cumulativeDelta > std::chrono::seconds(1).count()) {
+            cumulativeDelta -= std::chrono::seconds(1).count();
+            std::cout << frameCount << std::endl;
+            frameCount = 0;
+        }
+    }
+
+};
+
 int Setup() {
     /* Initialize the library */
     if (!glfwInit())
@@ -223,6 +261,8 @@ int Setup() {
 
     /* Make the window's context current */
     glfwMakeContextCurrent(window);
+    //disable vsync
+    glfwSwapInterval(0);
 
     GLenum err = glewInit();
     if (GLEW_OK != err)
@@ -244,6 +284,9 @@ int main()
         return -1;
     }
     
+    FrameTimer ft;
+    double gameTime{ 0.0f };
+
     Shader basicShader(SHADER_PATH + "quad.shader");
     basicShader.Bind();
     basicShader.SetUniformMat4f("ProjectionMatrix", proj);
@@ -261,13 +304,13 @@ int main()
     brunoWaypoints.waypoints.emplace_back( 9.0f, 9.0f);
     brunoWaypoints.waypoints.emplace_back( 9.0f,-9.0f);
     brunoWaypoints.waypoints.emplace_back(-9.0f,-9.0f);
-    brunoWaypoints.speed = 0.01f;
+    brunoWaypoints.speed = 0.001f;
     WaypointMovementSystem::AddComponent(0, brunoWaypoints);
 
     //Window Loop
     while (!glfwWindowShouldClose(window))
     {
-        
+        ft.FrameStart();
         //INPUT
         InputManager::Poll(window);
 
@@ -296,6 +339,10 @@ int main()
 
         /* Swap front and back buffers */
         glfwSwapBuffers(window);
+        
+        ft.FrameEnd();
+        gameTime += ft.deltaTime;
+        std::cout << ft.deltaTime << '\n';
     }
 
     glfwTerminate();
