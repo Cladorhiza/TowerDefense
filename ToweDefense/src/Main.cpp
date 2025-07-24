@@ -29,7 +29,9 @@ Camera camera;
 
 glm::mat4 proj { glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f) };
 glm::mat4 view { camera.GetViewMatrix() };
-glm::mat4 model{ 1.0f };
+glm::mat4 model { 1.0f };
+
+double deltaTime { 0.f };
 
 
 
@@ -61,14 +63,25 @@ struct TransformComponent{
 
 namespace TransformSystem{
 
-    std::unordered_map<unsigned, TransformComponent> transforms;
+    std::unordered_map<uint32_t, TransformComponent> transforms;
 
-    void AddTransform(unsigned id){
+    void AddTransform(uint32_t id){
         bool success = transforms.emplace(std::piecewise_construct, std::make_tuple(id), std::make_tuple()).second;
         if (!success) std::cout << "TransformSystem: failed to insert transform component " << id << " into system!\n";
     }
 
-    TransformComponent GetTransform(unsigned id){
+    glm::mat4 GetTransform(uint32_t id) {
+        TransformComponent tc{ transforms[id] };
+        glm::mat4 t{ 1.0f };
+        t = glm::translate(t, tc.position);
+        t = glm::rotate(t, tc.eulerRotation.x, {1.0f, 0.0f, 0.0f});
+        t = glm::rotate(t, tc.eulerRotation.y, {0.0f, 1.0f, 0.0f});
+        t = glm::rotate(t, tc.eulerRotation.z, {0.0f, 0.0f, 1.0f});
+        t = glm::scale(t, tc.scale);
+        return t;
+    }
+
+    TransformComponent GetComponent(uint32_t id){
         if (transforms.find(id) != transforms.end()){
             return transforms.at(id);
         }
@@ -78,7 +91,7 @@ namespace TransformSystem{
         }
     }
 
-    void SetTransform(unsigned id, TransformComponent newTransform){
+    void SetTransform(uint32_t id, TransformComponent newTransform){
         transforms[id] = newTransform;
     }
 }
@@ -114,10 +127,8 @@ namespace SpriteSystem {
         shader->Bind();
 
         for (auto& [id,sprite] : sprites) {
-            TransformComponent tc { TransformSystem::GetTransform(id) };
-                
             
-            shader->SetUniformMat4f("ModelMatrix", tc.transform);
+            shader->SetUniformMat4f("ModelMatrix", TransformSystem::GetTransform(id));
             sprite.texture.Bind();
             Rendering::RenderSpriteVA(sprite.vao);
             
@@ -130,6 +141,58 @@ namespace SpriteSystem {
     void SetShader(Shader& s){
         shader = &s;
     }
+}
+
+struct WaypointMovementComponent {
+
+    std::vector<glm::vec2> waypoints;
+    size_t currentWaypoint;
+    float speed;
+
+    WaypointMovementComponent()
+        :waypoints{}, currentWaypoint{ 0 }, speed{ 0.f }
+    {
+
+    }
+
+};
+
+namespace WaypointMovementSystem {
+
+    std::unordered_map<uint32_t, WaypointMovementComponent> components;
+
+    void AddComponent(uint32_t id) {
+        components.emplace(std::piecewise_construct, std::forward_as_tuple(id), std::forward_as_tuple(WaypointMovementComponent{}));
+    }
+
+    WaypointMovementComponent& GetComponent(uint32_t id) {
+        return components[id];
+    }
+
+    void Update() {
+
+        for (auto& [id, component] : components) {
+            TransformComponent tc { TransformSystem::GetComponent(id) };
+            glm::vec2 waypointPos { component.waypoints[component.currentWaypoint] };
+            glm::vec2 direction { waypointPos.x - tc.position.x, waypointPos.y - tc.position.y };
+
+            std::cout << direction.x << ", " << direction.y << std::endl;
+            //if difference between position and waypoint is small enough, change current waypoint to next
+            if (glm::length(direction) < 0.01f) {
+                if (component.currentWaypoint < component.waypoints.size() - 1) {
+                    component.currentWaypoint++;
+                    //TODO: this wastes a tick, consider recalculating new movement
+                    continue;
+                }
+            }
+            direction = glm::normalize(direction) * component.speed;
+            tc.position.x += direction.x;
+            tc.position.y += direction.y;
+            TransformSystem::SetTransform(id, tc);
+        }
+
+    }
+
 }
 
 int Setup() {
@@ -176,8 +239,17 @@ int main()
 
     SpriteSystem::SetShader(basicShader);
 
+    //bruno waypoints
     TransformSystem::AddTransform(0);
     SpriteSystem::AddSprite(0, TEXTURE_PATH + "bruno.png", rectVerts);
+    WaypointMovementSystem::AddComponent(0);
+    WaypointMovementComponent& brunoWaypoints = WaypointMovementSystem::GetComponent(0);
+    brunoWaypoints.currentWaypoint = 0;
+    brunoWaypoints.waypoints.emplace_back(-9.0f, 9.0f);
+    brunoWaypoints.waypoints.emplace_back( 9.0f, 9.0f);
+    brunoWaypoints.waypoints.emplace_back( 9.0f,-9.0f);
+    brunoWaypoints.waypoints.emplace_back(-9.0f,-9.0f);
+    brunoWaypoints.speed = 0.01f;
 
     //Window Loop
     while (!glfwWindowShouldClose(window))
@@ -199,11 +271,8 @@ int main()
         view = camera.GetViewMatrix();
         basicShader.SetUniformMat4f("ViewMatrix", view);
 
-        glm::mat4 translation = glm::translate(TransformSystem::GetTransform(0).transform, glm::vec3(0.0001f, 0.0f, 0.0f));
-        TransformComponent tc;
-        tc.transform = translation;
-        TransformSystem::SetTransform(0, tc);
-
+        //waypoint system
+        WaypointMovementSystem::Update();
 
 
         //RENDER

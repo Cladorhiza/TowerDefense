@@ -22,7 +22,7 @@ VertexArray::VertexArray(const std::vector<Vertex>& vertices) {
         glEnableVertexAttribArray(2);
 
         std::vector<unsigned> indices;
-        indices.reserve(vertices.size() * 1.5f);
+        indices.reserve(static_cast<size_t>(vertices.size() * 1.5f));
         for (int i{ 0 }; i+3 < vertices.size(); i += 4) {
             indices.push_back(0);
             indices.push_back(1);
@@ -32,7 +32,7 @@ VertexArray::VertexArray(const std::vector<Vertex>& vertices) {
             indices.push_back(3);
         }
 
-        indexCount = indices.size();
+        indexCount = static_cast<int>(indices.size());
 
         glGenBuffers(1, &ibo);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
