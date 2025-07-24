@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <utility>
 #include <chrono>
+#include <random>
 
 #include "InputManager.h"
 #include "Shader.h"
@@ -30,6 +31,8 @@ const std::string TEXTURE_PATH {"res\\textures\\"};
 
 const int GAME_TICKRATE { 128 };
 constexpr double GAME_TIME_PER_TICK = 1.0 / GAME_TICKRATE;
+
+const uint32_t TIME_BETWEEN_WAVES{ 15 };
 
 GLFWwindow* window;
 
@@ -246,6 +249,63 @@ public:
 
 };
 
+struct WaveEnemyComponent {
+
+    WaveEnemyComponent(int32_t bounty, double speed) 
+        :bounty(bounty), speed(speed)
+    {
+
+    }
+    //money gained on kill
+    int32_t bounty;
+    //movement speed
+    double speed;
+
+};
+
+WaveEnemyComponent brunowave(10, 0.001);
+
+namespace WaveSystem {
+
+    std::vector<std::vector<std::pair<WaveEnemyComponent, uint32_t>>> waves;
+
+    double currBetweenWaveTime{ 0.f };
+    bool waveInProgress = false;
+
+
+    void Update() {
+        
+        if (!waveInProgress) {
+            waves.emplace_back();
+            waves[0].emplace_back(std::piecewise_construct, std::forward_as_tuple(brunowave), std::forward_as_tuple(10));
+
+            WaypointMovementComponent brunoWaypoints;
+            brunoWaypoints.currentWaypoint = 0;
+            brunoWaypoints.waypoints.emplace_back(-9.0f, 9.0f);
+            brunoWaypoints.waypoints.emplace_back(9.0f, 9.0f);
+            brunoWaypoints.waypoints.emplace_back(9.0f, -9.0f);
+            brunoWaypoints.waypoints.emplace_back(-9.0f, -9.0f);
+
+            for (int i{ 0 }; i < waves[0][0].second; i++) {
+                TransformSystem::AddTransform(i);
+                TransformComponent tc = TransformSystem::GetComponent(i);
+                tc.position = glm::vec3(((std::rand() % 10) / 5.f) - 1, ((std::rand() % 10) / 5.f) - 1, 0.0f);
+                TransformSystem::SetTransform(i, tc);
+                SpriteSystem::AddSprite(i, TEXTURE_PATH + "bruno.png", rectVerts);
+                
+                brunoWaypoints.speed = waves[0][0].first.speed;
+                WaypointMovementSystem::AddComponent(i, brunoWaypoints);
+            }
+            waveInProgress = true;
+        }
+        
+
+    }
+
+
+
+}
+
 int Setup() {
     /* Initialize the library */
     if (!glfwInit())
@@ -296,17 +356,17 @@ int main()
     SpriteSystem::SetShader(basicShader);
 
     //bruno waypoints
-    TransformSystem::AddTransform(0);
-    SpriteSystem::AddSprite(0, TEXTURE_PATH + "bruno.png", rectVerts);
-    WaypointMovementComponent brunoWaypoints;
-    brunoWaypoints.currentWaypoint = 0;
-    brunoWaypoints.waypoints.emplace_back(-9.0f, 9.0f);
-    brunoWaypoints.waypoints.emplace_back( 9.0f, 9.0f);
-    brunoWaypoints.waypoints.emplace_back( 9.0f,-9.0f);
-    brunoWaypoints.waypoints.emplace_back(-9.0f,-9.0f);
-    brunoWaypoints.speed = 0.001f;
-    WaypointMovementSystem::AddComponent(0, brunoWaypoints);
-
+    //TransformSystem::AddTransform(0);
+    //SpriteSystem::AddSprite(0, TEXTURE_PATH + "bruno.png", rectVerts);
+    //WaypointMovementComponent brunoWaypoints;
+    //brunoWaypoints.currentWaypoint = 0;
+    //brunoWaypoints.waypoints.emplace_back(-9.0f, 9.0f);
+    //brunoWaypoints.waypoints.emplace_back( 9.0f, 9.0f);
+    //brunoWaypoints.waypoints.emplace_back( 9.0f,-9.0f);
+    //brunoWaypoints.waypoints.emplace_back(-9.0f,-9.0f);
+    //brunoWaypoints.speed = 0.001f;
+    //WaypointMovementSystem::AddComponent(0, brunoWaypoints);
+    
     //Window Loop
     while (!glfwWindowShouldClose(window))
     {
@@ -327,7 +387,9 @@ int main()
         view = camera.GetViewMatrix();
         basicShader.SetUniformMat4f("ViewMatrix", view);
 
-        //waypoint system
+        
+        WaveSystem::Update();
+
         WaypointMovementSystem::Update();
 
 
@@ -342,7 +404,6 @@ int main()
         
         ft.FrameEnd();
         gameTime += ft.deltaTime;
-        std::cout << ft.deltaTime << '\n';
     }
 
     glfwTerminate();
