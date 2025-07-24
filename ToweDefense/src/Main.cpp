@@ -20,6 +20,10 @@
 #include "Rendering.h"
 #include "Camera.h"
 
+#define COCK std::cout << "cock\n";
+#define PVEC2(vec) std::cout  << vec.x << ", " << vec.y << '\n';
+#define PVEC3(vec) std::cout  << vec.x << ", " << vec.y << ", " << vec.z << '\n';
+
 const std::string SHADER_PATH {"res\\shaders\\"};
 const std::string TEXTURE_PATH {"res\\textures\\"};
 
@@ -50,7 +54,7 @@ const std::vector<Vertex> rectVerts{
 struct TransformComponent{
     
     TransformComponent()
-        :position(0.0f), eulerRotation(0.0f), scale(1.0f), transform(1.0f)
+        :position(0.0f), eulerRotation(0.0f), scale(1.0f), transform(1.0f), modified(false)
     {
     
     }
@@ -59,6 +63,7 @@ struct TransformComponent{
     glm::vec3 eulerRotation;
     glm::vec3 scale;
     glm::mat4 transform;
+    bool modified;
 };
 
 namespace TransformSystem{
@@ -71,14 +76,21 @@ namespace TransformSystem{
     }
 
     glm::mat4 GetTransform(uint32_t id) {
+
         TransformComponent tc{ transforms[id] };
-        glm::mat4 t{ 1.0f };
-        t = glm::translate(t, tc.position);
-        t = glm::rotate(t, tc.eulerRotation.x, {1.0f, 0.0f, 0.0f});
-        t = glm::rotate(t, tc.eulerRotation.y, {0.0f, 1.0f, 0.0f});
-        t = glm::rotate(t, tc.eulerRotation.z, {0.0f, 0.0f, 1.0f});
-        t = glm::scale(t, tc.scale);
-        return t;
+
+        //recalculate if transformcomponent has been modified since last get
+        if (tc.modified) {
+            glm::mat4 t{ 1.0f };
+            t = glm::translate(t, tc.position);
+            t = glm::rotate(t, tc.eulerRotation.x, { 1.0f, 0.0f, 0.0f });
+            t = glm::rotate(t, tc.eulerRotation.y, { 0.0f, 1.0f, 0.0f });
+            t = glm::rotate(t, tc.eulerRotation.z, { 0.0f, 0.0f, 1.0f });
+            transforms[id].transform = glm::scale(t, tc.scale);
+        }
+
+        return transforms[id].transform;
+
     }
 
     TransformComponent GetComponent(uint32_t id){
@@ -93,6 +105,7 @@ namespace TransformSystem{
 
     void SetTransform(uint32_t id, TransformComponent newTransform){
         transforms[id] = newTransform;
+        transforms[id].modified = true;
     }
 }
 
@@ -117,9 +130,8 @@ namespace SpriteSystem {
         bool success = sprites.emplace(std::piecewise_construct, std::make_tuple(id), std::make_tuple(texturePath, vertices)).second;
         if (!success) std::cout << "SpriteSystem: failed to insert sprite component " << id << " into system!\n";
     }
-
+    
     void Update(){
-        
         if (!shader) {
             std::cout << "SpriteSystem: failed to render without bound shader!\n";
             return;
@@ -164,6 +176,9 @@ namespace WaypointMovementSystem {
     void AddComponent(uint32_t id) {
         components.emplace(std::piecewise_construct, std::forward_as_tuple(id), std::forward_as_tuple(WaypointMovementComponent{}));
     }
+    void AddComponent(uint32_t id, WaypointMovementComponent wmc) {
+        components.emplace(id, wmc);
+    }
 
     WaypointMovementComponent& GetComponent(uint32_t id) {
         return components[id];
@@ -175,8 +190,6 @@ namespace WaypointMovementSystem {
             TransformComponent tc { TransformSystem::GetComponent(id) };
             glm::vec2 waypointPos { component.waypoints[component.currentWaypoint] };
             glm::vec2 direction { waypointPos.x - tc.position.x, waypointPos.y - tc.position.y };
-
-            std::cout << direction.x << ", " << direction.y << std::endl;
             //if difference between position and waypoint is small enough, change current waypoint to next
             if (glm::length(direction) < 0.01f) {
                 if (component.currentWaypoint < component.waypoints.size() - 1) {
@@ -242,14 +255,14 @@ int main()
     //bruno waypoints
     TransformSystem::AddTransform(0);
     SpriteSystem::AddSprite(0, TEXTURE_PATH + "bruno.png", rectVerts);
-    WaypointMovementSystem::AddComponent(0);
-    WaypointMovementComponent& brunoWaypoints = WaypointMovementSystem::GetComponent(0);
+    WaypointMovementComponent brunoWaypoints;
     brunoWaypoints.currentWaypoint = 0;
     brunoWaypoints.waypoints.emplace_back(-9.0f, 9.0f);
     brunoWaypoints.waypoints.emplace_back( 9.0f, 9.0f);
     brunoWaypoints.waypoints.emplace_back( 9.0f,-9.0f);
     brunoWaypoints.waypoints.emplace_back(-9.0f,-9.0f);
     brunoWaypoints.speed = 0.01f;
+    WaypointMovementSystem::AddComponent(0, brunoWaypoints);
 
     //Window Loop
     while (!glfwWindowShouldClose(window))
