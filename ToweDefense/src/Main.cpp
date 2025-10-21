@@ -306,13 +306,23 @@ namespace WaveSystem {
 
 }
 
+namespace PhysicsUtil {
+
+    //aabb collision
+
+    bool CirclesCollide(float x1, float x2, float y1, float y2, float r1, float r2) {
+        float absDiffXY = ((x1 - x2) * (x1 - x2)) + ((y1 - y2) * (y1 - y2));
+        return absDiffXY <= (r1 + r2);
+    }
+}
+
 int Setup() {
     /* Initialize the library */
     if (!glfwInit())
         return -1;
 
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(1280, 960, "Tower Defense", NULL, NULL);
+    window = glfwCreateWindow(960, 960, "Tower Defense", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -355,17 +365,11 @@ int main()
 
     SpriteSystem::SetShader(basicShader);
 
-    //bruno waypoints
-    //TransformSystem::AddTransform(0);
-    //SpriteSystem::AddSprite(0, TEXTURE_PATH + "bruno.png", rectVerts);
-    //WaypointMovementComponent brunoWaypoints;
-    //brunoWaypoints.currentWaypoint = 0;
-    //brunoWaypoints.waypoints.emplace_back(-9.0f, 9.0f);
-    //brunoWaypoints.waypoints.emplace_back( 9.0f, 9.0f);
-    //brunoWaypoints.waypoints.emplace_back( 9.0f,-9.0f);
-    //brunoWaypoints.waypoints.emplace_back(-9.0f,-9.0f);
-    //brunoWaypoints.speed = 0.001f;
-    //WaypointMovementSystem::AddComponent(0, brunoWaypoints);
+    SpriteSystem::AddSprite(11, TEXTURE_PATH + "tower.png", rectVerts);
+    TransformSystem::AddTransform(11);
+    TransformComponent towerLocation;
+    towerLocation.position = glm::vec3{ 3.0f, 3.0f, 1.0f };
+    TransformSystem::SetTransform(11, towerLocation);
     
     //Window Loop
     while (!glfwWindowShouldClose(window))
